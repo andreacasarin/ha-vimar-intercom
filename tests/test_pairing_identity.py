@@ -1,7 +1,7 @@
 """The identity and domain a paired entry registers with.
 
-A local pairing binds (identifier, MyName) to the credential and refuses any
-other pair with 503. Entries saved by the m4r1k fork keep the cloud domain
+A local probe must preserve the paired identity, but a 503 does not establish
+which policy rejected it. Entries saved by the m4r1k fork keep the cloud domain
 under "sip_cloud_domain": without it cloud mode registers on the wrong domain.
 """
 import asyncio
@@ -104,10 +104,11 @@ def test_the_local_test_registers_with_the_paired_identity(cf, monkeypatch):
     assert 'realm="r"' in seen[1]
 
 
-def test_a_refused_identity_is_explained(cf, monkeypatch):
+def test_a_rejection_with_the_paired_identity_does_not_identify_the_policy(cf, monkeypatch):
     port, _ = fake_intercom("SIP/2.0 503 You're not allowed to make this operation")
     ok, msg = register(cf, monkeypatch, port)
-    assert not ok and "refuses this identity" in msg
+    assert not ok and "local UDP registration was rejected" in msg
+    assert "does not distinguish" in msg
 
 
 def fake_intercom_3():

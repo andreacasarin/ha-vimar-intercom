@@ -59,7 +59,8 @@ Impostazioni → Vimar Intercom → **Configura**:
 | Opzione | Descrizione |
 |---|---|
 | **IP del citofono** (`local_proxy`) | IP del Flexisip locale sul Tab |
-| **Usa SIP UDP locale** (`use_local_udp`) | ON = UDP locale; OFF = TLS cloud |
+| **Usa SIP locale** (`use_local_udp`, chiave storica) | ON = trasporto locale selezionato; OFF = TLS cloud |
+| **Trasporto SIP locale** (`local_transport`) | `udp` (predefinito, comportamento esistente) oppure `tcp` sperimentale. TCP si collega al citofono sulla porta 5060; la porta UDP locale non si applica. La sola registrazione non dimostra il supporto delle chiamate locali. |
 | **Porta UDP locale** (`local_udp_port`) | default 5060 |
 | **Attuatori (JSON)** (`actuators`) | lista JSON `{name, msg, target, icon}`; crea bottoni dinamici. Vuoto = nessun bottone |
 | **SGA** (`sga_target`) | destinatario di `VOICEMAIL;`/`DND;`, e del comando di apertura se `door_target` è vuota. Vuoto = default `55001` |

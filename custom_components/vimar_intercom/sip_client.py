@@ -162,7 +162,7 @@ def get_local_ip():
 # ─── Transport helpers ───────────────────────────────────────────────
 
 def _transport():
-    return "UDP" if R.USE_LOCAL_UDP else "TLS"
+    return R.LOCAL_TRANSPORT.upper() if R.USE_LOCAL_UDP else "TLS"
 
 
 def _my_port():
@@ -177,6 +177,8 @@ def _my_port():
     """
     if not R.USE_LOCAL_UDP:
         return 5070
+    if not R.use_udp():
+        return int(writer.get_extra_info("sockname")[1]) if writer is not None else R.LOCAL_UDP_PORT
     if _udp_sock is not None:
         try:
             return int(_udp_sock.getsockname()[1])
@@ -186,17 +188,19 @@ def _my_port():
 
 
 def _via_line(branch):
+    alias = "alias;" if R.USE_LOCAL_UDP and not R.use_udp() else ""
     return (f"Via: SIP/2.0/{_transport()} {MY_IP}:{_my_port()};"
-            f"branch={branch};rport\r\n")
+            f"{alias}branch={branch};rport\r\n")
 
 
 def _contact_hdr(include_pn=True):
     """Return the full Contact header value (no 'Contact:' prefix)."""
     port = _my_port()
     if R.USE_LOCAL_UDP:
-        contact = f"<sip:{R.SIP_USER}@{MY_IP}:{port}>"
+        transport = "" if R.use_udp() else ";transport=tcp"
+        contact = f"<sip:{R.SIP_USER}@{MY_IP}:{port}{transport}>"
         contact += f';+sip.instance="<urn:uuid:{R.DEVICE_UUID}>"'
-        contact += ";expires=3600"
+        contact += f";expires={3600 if R.use_udp() else 900}"
         return contact
     # TLS/cloud mode
     contact_uri = f"sip:{R.SIP_USER}@{MY_IP}:{port};transport=tls"
@@ -217,7 +221,7 @@ def _route_line():
     """Route verso il proxy cloud per le richieste FUORI dialogo (REGISTER, INVITE,
     MESSAGE, OPTIONS). Per quelle nel dialogo vale `_dialog_target()`."""
     if R.USE_LOCAL_UDP:
-        return ""
+        return "" if R.use_udp() else f"Route: <sip:{R.LOCAL_PROXY};transport=tcp;lr>\r\n"
     return f"Route: <sip:{R.SIP_PROXY};transport=tls;lr>\r\n"
 
 
@@ -277,7 +281,8 @@ def _simple_contact():
     """Contact URI for in-dialog responses (180/200 to incoming INVITE)."""
     port = _my_port()
     if R.USE_LOCAL_UDP:
-        return f"<sip:{R.SIP_USER}@{MY_IP}:{port}>"
+        transport = "" if R.use_udp() else ";transport=tcp"
+        return f"<sip:{R.SIP_USER}@{MY_IP}:{port}{transport}>"
     return f"<sip:{R.SIP_USER}@{MY_IP}:{port};transport=tls>"
 
 
@@ -365,7 +370,7 @@ async def connect():
     # reconnect.
     MY_IP = await asyncio.get_running_loop().run_in_executor(None, get_local_ip)
 
-    if R.USE_LOCAL_UDP:
+    if R.use_udp():
         # ── UDP locale: apre un socket UDP verso il citofono ───────
         _udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
@@ -387,6 +392,12 @@ async def connect():
         lock = asyncio.Lock()
         _LOGGER.info("SIP UDP socket bound, target %s:%d",
                      R.LOCAL_PROXY, C.LOCAL_SIP_PORT)
+    elif R.USE_LOCAL_UDP:
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(R.LOCAL_PROXY, C.LOCAL_SIP_PORT), timeout=12)
+        MY_IP = writer.get_extra_info("sockname")[0]
+        lock = asyncio.Lock()
+        _LOGGER.info("SIP local TCP connected")
     else:
         # ── TLS/TCP cloud mode ─────────────────────────────────────
         loop = asyncio.get_running_loop()
@@ -524,7 +535,7 @@ async def _reconnect():
         _LOGGER.warning("SIP reconnect attempt %d/%d in %ds...", attempt, len(delays), delay)
         await asyncio.sleep(delay)
         try:
-            if R.USE_LOCAL_UDP:
+            if R.use_udp():
                 # UDP: non serve riconnettersi, solo re-registrarsi
                 ok = await do_register()
             else:
@@ -536,7 +547,7 @@ async def _reconnect():
                 await connect()
                 _LOGGER.info("SIP reconnected, re-registering...")
                 ok = await do_register()
-                if ok:
+                if ok and not R.USE_LOCAL_UDP:
                     try:
                         await do_connect_profiles()
                     except Exception:
@@ -554,7 +565,7 @@ async def send(msg: str):
     _LOGGER.debug("[SIP >>>] %s", first_line)
     _log_full(">>>", msg)
     try:
-        if R.USE_LOCAL_UDP:
+        if R.use_udp():
             loop = asyncio.get_running_loop()
             async with lock:
                 await loop.sock_sendto(_udp_sock, msg.encode(), _udp_target)
@@ -792,7 +803,7 @@ async def _reconnect_from_reader():
 
 
 async def reader_task():
-    if R.USE_LOCAL_UDP:
+    if R.use_udp():
         await _udp_reader_task()
         return
 
@@ -894,7 +905,7 @@ async def _send_request(msg: str, cid: str, timeout: float = 15,
     want = _parse(msg)[1].get("cseq", "").split()
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
-    retransmit = bool(R.USE_LOCAL_UDP)
+    retransmit = R.use_udp()
     interval = _T1
     next_tx = loop.time() + interval
     results: list[str] = []
@@ -1034,7 +1045,7 @@ def _granted_expires(hdrs) -> int | None:
 
 async def do_register():
     # In UDP mode writer is always None — skip the TLS connect check
-    if R.USE_LOCAL_UDP:
+    if R.use_udp():
         if _udp_sock is None:
             await connect()
     elif not writer or writer.is_closing():
@@ -1128,7 +1139,7 @@ async def do_register():
         "REGISTER: nessuna risposta finale utile (%d risposte%s) verso %s via %s",
         len(resps), f": {codes}" if codes else "",
         R.LOCAL_PROXY if R.USE_LOCAL_UDP else R.SIP_PROXY,
-        "UDP" if R.USE_LOCAL_UDP else "TLS",
+        _transport(),
     )
     _set_registered(False)
     return False
@@ -1325,7 +1336,7 @@ async def do_call(target=None, silence_limit=None, answer_timeout=None, ring_tim
         await send(inv_msg)
         # UDP: l'INVITE si ritrasmette finché arriva una risposta qualsiasi (Timer A,
         # RFC 3261 §17.1.1.2). Perso il primo, "Vedi esterno" aspettava 45 s.
-        retx, retx_iv = bool(R.USE_LOCAL_UDP), _T1
+        retx, retx_iv = R.use_udp(), _T1
         retx_at = time.time() + retx_iv
 
     await _invite()
@@ -1881,7 +1892,7 @@ async def handle_incoming_invite(raw):
         if not ringing(cid) and not in_call:
             await media.stop_media()  # CANCEL arrivato mentre il video partiva
             return
-        if pending_incoming["early"] and R.USE_LOCAL_UDP:
+        if pending_incoming["early"] and R.use_udp():
             _spawn(_watch_ring_media(cid))
     else:
         resp = f"SIP/2.0 180 Ringing\r\n{head}Content-Length: 0\r\n\r\n"

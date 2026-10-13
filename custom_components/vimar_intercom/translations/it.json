@@ -33,18 +33,20 @@
       },
       "network": {
         "title": "Rete locale",
-        "description": "Inserisci l'IP locale del citofono. Impianto: {plant}. La configurazione prova una registrazione vera sul trasporto atteso e, se fallisce, prova l'altro (UDP locale o cloud TLS) e tiene quello che funziona. Utente: {sip_user}@{sip_domain}, MAC: {mac}. In caso di errore: {error_detail}",
+        "description": "Inserisci l'IP locale del citofono. Impianto: {plant}. La configurazione prova una registrazione vera sul trasporto atteso e, se fallisce, prova l'altro (UDP/TCP locale o cloud TLS) e tiene quello che funziona. Utente: {sip_user}@{sip_domain}, MAC: {mac}. In caso di errore: {error_detail}",
         "data": {
           "local_proxy": "IP citofono (proxy locale)",
-          "use_local_udp": "Prova prima l'UDP locale",
+          "use_local_udp": "Prova prima il SIP locale",
           "local_udp_port": "Porta UDP locale",
-          "device_name": "Nome del dispositivo"
+          "device_name": "Nome del dispositivo",
+          "local_transport": "Trasporto SIP locale"
         },
         "data_description": {
           "local_proxy": "L'indirizzo IP locale del tuo citofono Vimar (es. 192.168.1.100).",
-          "use_local_udp": "Preimpostato dal tipo di impianto nel QR. Gli impianti Due Fili Plus EVO ricevono le chiamate solo tramite il relay cloud; se la prima via fallisce, si prova l'altra.",
+          "use_local_udp": "Preimpostato dal tipo di impianto nel QR. Se il trasporto locale selezionato fallisce, si prova il TLS cloud (e viceversa). La sola registrazione non verifica la consegna delle chiamate.",
           "local_udp_port": "Porta UDP usata da HA per il SIP locale. Default: 5060.",
-          "device_name": "Il nome con cui l'integrazione si presenta al citofono (header MyName). L'abbinamento lo lega alla credenziale: una volta registrato non va cambiato."
+          "device_name": "Il nome con cui l'integrazione si presenta al citofono (header MyName). L'abbinamento lo lega alla credenziale: una volta registrato non va cambiato.",
+          "local_transport": "UDP mantiene il comportamento locale esistente. TCP è sperimentale: la registrazione può riuscire senza rendere disponibili le chiamate. Usato solo con SIP locale selezionato; il TLS cloud resta invariato."
         }
       },
       "zeroconf_confirm": {
@@ -100,7 +102,7 @@
         "description": "Rete SIP e attuatori dinamici. Nel campo Attuatori incolla la lista JSON prodotta da tools/parse_rubrica.py, oppure torna al menu e usa \"Importa attuatori da rubrica.db\". {actuators_error}",
         "data": {
           "local_proxy": "IP del citofono",
-          "use_local_udp": "Usa SIP UDP locale",
+          "use_local_udp": "Usa il SIP locale",
           "local_udp_port": "Porta UDP locale",
           "voice_answer": "Risposta a voce (microfono su /audio_ws)",
           "media_enc": "Cifratura del media (SRTP)",
@@ -122,7 +124,8 @@
           "allowed_users": "Utenti ammessi a squilli e media live (vuoto = tutti)",
           "ring_webhook_url": "Webhook a inizio squillo (URL)",
           "ring_end_webhook_url": "Webhook a fine squillo (URL)",
-          "video_bandwidth": "Qualità video dalla targa"
+          "video_bandwidth": "Qualità video dalla targa",
+          "local_transport": "Trasporto SIP locale"
         },
         "data_description": {
           "voice_answer": "Chi può rispondere alla chiamata parlando mentre squilla. Solo dichiarato: risponde solo chi si collega con /audio_ws?voice_answer=1 (Echo Show, HomeKit via Scrypted). Mai: la voce non risponde. Chiunque: risponde qualsiasi connessione con microfono; attenzione, un tablet a muro con il microfono rimasto aperto può rispondere da solo con i rumori di casa.",
@@ -145,7 +148,8 @@
           "allowed_users": "Limita la card, lo storico squilli (foto e clip) e /audio_ws a questi utenti di Home Assistant. Gli amministratori sempre. Vuoto = ogni utente autenticato. NON limita l'entità camera né /av dalla rete locale: chi può aprire la camera vede (e sente) lo stream; e se la cartella foto è sotto una cartella media di HA, foto e clip compaiono nel browser media per tutti gli utenti.",
           "ring_webhook_url": "GET (fire-and-forget) inviata quando inizia uno squillo, es. per accendere un interruttore fittizio (Scrypted Dummy Switch) collegato a un Custom Doorbell Button. Un fallimento si logga come warning e non ferma lo squillo. Vuoto = disattivato.",
           "ring_end_webhook_url": "GET (fire-and-forget) inviata quando lo squillo finisce, risposto, annullato o scaduto: stessa idea di sopra, per spegnere l'interruttore. Vuoto = disattivato.",
-          "video_bandwidth": "Vale per tutto il video della targa: card, camera, /av e HomeKit. Automatico (consigliato): 2 Mbit/s in UDP locale, 256 kbit/s tramite il relay cloud, che perde qualche pacchetto su cento. 256 kbit/s: flusso più leggero, meno fotogrammi rovinati con un relay che perde pacchetti, ma immagine più piccola su alcune targhe (un Tab 5S Up 40515 scende a 320x240 a 15 fps). 2 Mbit/s: l'immagine più nitida (720x576 a 24 fps su un 40515) e dieci volte il traffico; con un relay che perde pacchetti (misurato su un Tab 7S Up 40517) il video si sgrana, si blocca e va in ritardo."
+          "video_bandwidth": "Vale per tutto il video della targa: card, camera, /av e HomeKit. Automatico (consigliato): 2 Mbit/s in UDP locale, 256 kbit/s tramite il relay cloud, che perde qualche pacchetto su cento. 256 kbit/s: flusso più leggero, meno fotogrammi rovinati con un relay che perde pacchetti, ma immagine più piccola su alcune targhe (un Tab 5S Up 40515 scende a 320x240 a 15 fps). 2 Mbit/s: l'immagine più nitida (720x576 a 24 fps su un 40515) e dieci volte il traffico; con un relay che perde pacchetti (misurato su un Tab 7S Up 40517) il video si sgrana, si blocca e va in ritardo.",
+          "local_transport": "UDP mantiene il comportamento locale esistente. TCP è sperimentale: la registrazione può riuscire senza rendere disponibili le chiamate. Usato solo con SIP locale selezionato; il TLS cloud resta invariato."
         }
       },
       "homekit": {

@@ -37,7 +37,9 @@ PLANT_TYPE:   str = ""
 MAC_CITOFONO: str = ""
 
 # ─── Impostazioni di rete (da config entry / options flow) ───────────────────
-USE_LOCAL_UDP:  bool = True   # True = UDP locale; False = TLS/TCP cloud
+USE_LOCAL_UDP:  bool = True   # Legacy key: True selects local SIP; False selects cloud TLS.
+LOCAL_TRANSPORTS = ("udp", "tcp")
+LOCAL_TRANSPORT: str = "udp"  # Explicit opt-in; existing entries retain UDP.
 LOCAL_UDP_PORT: int  = 5060   # porta UDP locale su HA
 
 # ─── Video ───────────────────────────────────────────────────────────────────
@@ -69,6 +71,11 @@ VOICE_ANSWER: str = VOICE_ANSWER_DEFAULT
 
 def voice_answer_mode(value) -> str:
     return value if value in VOICE_ANSWER_MODES else VOICE_ANSWER_DEFAULT
+
+
+def use_udp() -> bool:
+    """Whether signaling uses datagrams, rather than a local TCP/cloud TLS stream."""
+    return USE_LOCAL_UDP and LOCAL_TRANSPORT == "udp"
 
 
 def media_enc_mode(value) -> str:
@@ -263,7 +270,7 @@ def configure(data: dict) -> None:
     global LOCAL_DOMAIN, CLOUD_DOMAIN
     global SIP_PROXY, LOCAL_PROXY
     global GID, PLANT_TYPE, MAC_CITOFONO
-    global USE_LOCAL_UDP, LOCAL_UDP_PORT, MEDIA_ENC_OPTION, VIDEO_ENABLED
+    global USE_LOCAL_UDP, LOCAL_TRANSPORT, LOCAL_UDP_PORT, MEDIA_ENC_OPTION, VIDEO_ENABLED
     global INTERCOM, DOOR_ESTERNO, VOICE_ANSWER
     global ACTUATORS
     global SGA_TARGET, PICG_TARGET
@@ -285,6 +292,9 @@ def configure(data: dict) -> None:
     MAC_CITOFONO = data.get("mac", "")
 
     USE_LOCAL_UDP  = bool(data.get("use_local_udp", True))
+    LOCAL_TRANSPORT = data.get("local_transport", "udp")
+    if LOCAL_TRANSPORT not in LOCAL_TRANSPORTS:
+        LOCAL_TRANSPORT = "udp"
     LOCAL_UDP_PORT = int(data.get("local_udp_port", 5060))
     VIDEO_ENABLED  = bool(data.get("video_enabled", True))
     MEDIA_ENC_OPTION = media_enc_mode(data.get("media_enc"))

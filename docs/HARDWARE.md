@@ -38,6 +38,12 @@ announced over mDNS `_eipvdes._tcp.local.`).
 
 ### Why the local network is not enough
 
+The TCP and call-routing observations below describe another installation;
+they must be reproduced before applying them to a new installation, even with
+the same model and firmware. The denial text alone does not identify the
+policy responsible. See [the local-support investigation](LOCAL_SUPPORT_INVESTIGATION.md)
+for the evidence limits and offline acceptance procedure.
+
 On this plant the local path is not simply "slower". It does not carry calls.
 
 * **Local UDP**: rejected with `503 You're not allowed to make this operation`,

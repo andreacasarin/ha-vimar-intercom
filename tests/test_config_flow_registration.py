@@ -72,6 +72,22 @@ def test_an_unexpected_final_answer_is_reported_as_such(cf, monkeypatch):
     assert not ok and msg == "Unexpected response: SIP/2.0 486 Busy Here"
 
 
+@pytest.mark.parametrize("challenged", [False, True])
+def test_local_503_does_not_identify_the_rejection_policy(cf, monkeypatch, challenged):
+    rejection = "SIP/2.0 503 You're not allowed to make this operation"
+    replies = [[CHALLENGE]] if challenged else []
+    replies.append([rejection + "\r\n\r\n"])
+    port, seen = udp_intercom(replies)
+    ok, msg = register_udp(cf, monkeypatch, port)
+    assert not ok
+    assert msg == (
+        f"{rejection}: local UDP registration was rejected. This response "
+        "does not distinguish a device identity restriction from a local "
+        "UDP policy restriction."
+    )
+    assert len(seen) == (2 if challenged else 1)
+
+
 def test_a_challenge_without_nonce_is_refused(cf, monkeypatch):
     port, _ = udp_intercom([['SIP/2.0 401 Unauthorized\r\nWWW-Authenticate: Digest realm="r"\r\n\r\n']])
     ok, msg = register_udp(cf, monkeypatch, port)
@@ -152,8 +168,10 @@ def tls_relay(tls_cert, replies):
     """TLS fake relay on 127.0.0.1: for each REGISTER, the next reply (bytes);
     None closes the connection; a list is sent piece by piece. Returns (port,
     requests seen)."""
-    server_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    server_ctx.load_cert_chain(*tls_cert)
+    server_ctx = None
+    if tls_cert is not None:
+        server_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        server_ctx.load_cert_chain(*tls_cert)
     listener = socket.socket()
     listener.bind(("127.0.0.1", 0))
     listener.listen(1)
@@ -163,7 +181,7 @@ def tls_relay(tls_cert, replies):
     def serve():
         try:
             raw, _ = listener.accept()
-            with server_ctx.wrap_socket(raw, server_side=True) as conn:
+            with (server_ctx.wrap_socket(raw, server_side=True) if server_ctx else raw) as conn:
                 conn.settimeout(5)
                 buffer = b""
                 for reply in replies:
@@ -261,3 +279,59 @@ def test_an_untrusted_certificate_is_refused(cf, monkeypatch, tls_cert):
 def test_no_proxy_address_at_all_fails_cleanly(cf, monkeypatch, tls_cert):
     ok, msg = register_cloud(cf, monkeypatch, tls_cert, [])
     assert (ok, msg) == (False, "Cloud registration failed (no proxy reachable)")
+
+
+@pytest.mark.parametrize("proxy_auth", [False, True])
+def test_tcp_probe_frames_responses_authenticates_and_removes_binding(cf, monkeypatch, proxy_auth):
+    header = "Proxy-Authenticate" if proxy_auth else "WWW-Authenticate"
+    status = "407 Proxy Authentication Required" if proxy_auth else "401 Unauthorized"
+    # A provisional response with a body, coalesced with a partial challenge.
+    challenge = (f'SIP/2.0 {status}\r\n{header}: Digest realm="r", nonce="n"\r\n'
+                 'Content-Length: 0\r\n\r\n').encode()
+    port, seen = tls_relay(None, [
+        [b"SIP/2.0 100 Trying\r\nContent-Length: 4\r\n\r\ntest" + challenge[:20], challenge[20:]],
+        [b"SIP/2.0 200 OK\r\nContent-Length: 0\r\n", b"\r\n"],
+        b"SIP/2.0 200 OK\r\nContent-Length: 0\r\n\r\n",
+    ])
+    monkeypatch.setattr(cf, "DEFAULT_LOCAL_SIP_PORT", port)
+    ok, _ = asyncio.run(cf._test_sip_registration(
+        "10101", "synthetic-password", "local.example.test", "127.0.0.1",
+        local_transport="tcp", timeout=2, unregister=True,
+        device_imei="000000000000000", device_uuid="synthetic-uuid", device_name="Synthetic HA"))
+    assert ok and len(seen) == 3
+    assert "REGISTER sip:local.example.test" in seen[0]
+    assert "Via: SIP/2.0/TCP" in seen[0] and ";alias;" in seen[0]
+    assert "Route: <sip:127.0.0.1;transport=tcp;lr>" in seen[0]
+    assert ";transport=tcp>" in seen[0]
+    assert 'Mobile-IMEI: 000000000000000' in seen[0]
+    assert 'MyName: Synthetic HA' in seen[0]
+    assert '+sip.instance="<urn:uuid:synthetic-uuid>"' in seen[0]
+    assert f"{'Proxy-Authorization' if proxy_auth else 'Authorization'}: Digest" in seen[1]
+    assert "Expires: 0" in seen[2]
+    assert seen[0].split("Contact: ")[1].split("\r\n")[0] == seen[2].split("Contact: ")[1].split("\r\n")[0]
+
+
+@pytest.mark.parametrize("reply, expected", [
+    (b"SIP/2.0 200 OK\r\nContent-Length: 0\r\n\r\n", "Registration succeeded (no auth)"),
+    (b"SIP/2.0 503 You're not allowed to make this operation\r\nContent-Length: 0\r\n\r\n", "local TCP registration was rejected"),
+    (None, "connection closed by the intercom"),
+    (b"SIP/2.0 200 OK\r\nContent-Length: invalid\r\n\r\n", "Malformed SIP stream"),
+])
+def test_tcp_probe_reports_success_rejection_and_broken_stream(cf, monkeypatch, reply, expected):
+    port, _ = tls_relay(None, [reply])
+    monkeypatch.setattr(cf, "DEFAULT_LOCAL_SIP_PORT", port)
+    ok, message = asyncio.run(cf._test_sip_registration(
+        "10101", "synthetic-password", "local.example.test", "127.0.0.1",
+        local_transport="tcp", timeout=1))
+    assert ok is (reply is not None and expected.startswith("Registration"))
+    assert expected in message
+
+
+def test_tcp_probe_bounds_an_unterminated_stream(cf, monkeypatch):
+    port, _ = tls_relay(None, [b"x" * 100])
+    monkeypatch.setattr(cf, "DEFAULT_LOCAL_SIP_PORT", port)
+    monkeypatch.setattr(cf, "MAX_SIP_BODY", 64)
+    ok, message = asyncio.run(cf._test_sip_registration(
+        "10101", "synthetic-password", "local.example.test", "127.0.0.1",
+        local_transport="tcp", timeout=1))
+    assert not ok and "buffer overflow" in message

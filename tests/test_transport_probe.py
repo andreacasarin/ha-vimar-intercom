@@ -161,3 +161,35 @@ def test_a_transport_fallback_is_shown_and_kept(cf, monkeypatch, caplog):
 def test_no_fallback_no_note(cf, monkeypatch):
     result, _, _ = network_step(cf, monkeypatch, CREDENTIALS, local_ok=True, cloud_ok=True)
     assert "setup_note" not in result["data"] and "description" not in result
+
+
+def test_tcp_is_an_explicit_probe_choice_and_failure_preserves_cloud_fallback(cf, monkeypatch):
+    seen = []
+
+    async def local(**kwargs):
+        seen.append(kwargs)
+        return False, "local TCP rejected"
+
+    async def cloud(**kwargs):
+        return True, "cloud accepted"
+
+    monkeypatch.setattr(cf, "_test_sip_registration", local)
+    monkeypatch.setattr(cf, "_test_cloud_registration", cloud)
+    use_local, ok, message = asyncio.run(cf._probe_transport(
+        CREDENTIALS, local_proxy="192.0.2.1", local_udp_port=5060, identity={},
+        prefer_local=True, local_transport="tcp", local_domain="local.example.test"))
+    assert not use_local and ok
+    assert "local TCP" in message and "cloud TLS" in message
+    assert seen[0]["local_transport"] == "tcp"
+    assert seen[0]["sip_domain"] == "local.example.test"
+
+
+def test_setup_stores_explicit_local_tcp_without_changing_profile_defaults(cf, monkeypatch):
+    result, calls, _ = network_step(cf, monkeypatch, {**CREDENTIALS, "plant_type": "2FV2"},
+                                  local_ok=True, cloud_ok=True,
+                                  user_input={"local_proxy": "192.0.2.1", "use_local_udp": True,
+                                              "local_transport": "tcp"})
+    assert result["type"] == "create_entry"
+    assert result["data"]["use_local_udp"] is True
+    assert result["data"]["local_transport"] == "tcp"
+    assert calls == ["local"]

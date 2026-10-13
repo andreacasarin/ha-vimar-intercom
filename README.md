@@ -42,6 +42,8 @@ Coming from the original noiseheroes-lab integration? Remove it first: [Migratio
 4. In **Configure**, get your plant's phonebook (from the intercom, from the Vimar cloud, or a
    `rubrica.db` file): it sets the door, the actuators and the addresses the commands go to.
 
+Local TCP is available as an **experimental, explicit option** in network settings. It does not establish offline support for the 40517; cloud TLS remains its default. See [the investigation](docs/LOCAL_SUPPORT_INVESTIGATION.md).
+
 Requires Home Assistant 2025.10 or later and ffmpeg on the host. Manual installation, every option and
 the phonebook: [Configuration](https://github.com/ha-vimar/ha-vimar-intercom/blob/main/docs/CONFIGURATION.md).
 

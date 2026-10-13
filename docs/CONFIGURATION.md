@@ -59,7 +59,8 @@ Settings → Vimar Intercom → **Configure**:
 | Option | Description |
 |---|---|
 | **Intercom IP** (`local_proxy`) | IP address of the Flexisip instance on the Tab |
-| **Use local SIP UDP** (`use_local_udp`) | ON = local UDP; OFF = cloud TLS |
+| **Use local SIP** (`use_local_udp`, legacy key) | ON = selected local transport; OFF = cloud TLS |
+| **Local SIP transport** (`local_transport`) | `udp` (default, existing behavior) or experimental `tcp`. TCP connects to the intercom on port 5060; the UDP bind-port option does not apply. Registration alone does not establish local call support. |
 | **Local UDP port** (`local_udp_port`) | default 5060 |
 | **Actuators (JSON)** (`actuators`) | JSON list of `{name, msg, target, icon}`; creates dynamic buttons. Empty = no buttons |
 | **SGA** (`sga_target`) | Recipient of `VOICEMAIL;`/`DND;`, and of the door command when `door_target` is empty. Empty = default `55001` |

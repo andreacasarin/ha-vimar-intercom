@@ -163,13 +163,15 @@ class FakePeer:
             self._udp, _ = await loop.create_datagram_endpoint(P, local_addr=("127.0.0.1", 0))
             self.port = self._udp.get_extra_info("sockname")[1]
         else:
-            self._tmp = tempfile.mkdtemp()
-            cp, kp = _self_signed(self._tmp)
-            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-            ctx.load_cert_chain(cp, kp)
+            ctx = None
+            if self.transport == "tls":
+                self._tmp = tempfile.mkdtemp()
+                cp, kp = _self_signed(self._tmp)
+                ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                ctx.load_cert_chain(cp, kp)
             self._server = await asyncio.start_server(self._conn, "127.0.0.1", 0, ssl=ctx)
             self.port = self._server.sockets[0].getsockname()[1]
-            self.record_route = f"<sip:127.0.0.1:{self.port};transport=tls;lr>"
+            self.record_route = f"<sip:127.0.0.1:{self.port};transport={self.transport};lr>"
         self.contact_uri = f"sip:{PANEL}@127.0.0.1:{self.port}"
 
         peer = self
@@ -224,7 +226,7 @@ class FakePeer:
         for t in (self._udp, self.rtp_audio, self.rtp_video):
             if t:
                 t.close()
-        if self.transport == "tls":
+        if self.transport != "udp":
             self.drop()
             self._server.close()
 
@@ -345,7 +347,7 @@ class FakePeer:
             self._inv_branch[cid] = branch
         to = f"<sip:{USER}@{DOMAIN}>" + (f";tag={to_tag}" if to_tag else "")
         ctype = "Content-Type: application/sdp\r\n" if body else ""
-        proto = "UDP" if self.transport == "udp" else "TLS"
+        proto = self.transport.upper()
         rr = f"Record-Route: {self.record_route}\r\n" if self.record_route and method == "INVITE" else ""
         raw = (f"{method} sip:{USER}@127.0.0.1 SIP/2.0\r\n"
                f"Via: SIP/2.0/{proto} 127.0.0.1:{self.port};branch={branch}\r\n{rr}"

@@ -315,7 +315,7 @@ class VimarIntercomHub(PlantMessages, RingMedia):
 
     @property
     def transport(self) -> str:
-        return "udp-local" if R.USE_LOCAL_UDP else "tls-cloud"
+        return f"{R.LOCAL_TRANSPORT}-local" if R.USE_LOCAL_UDP else "tls-cloud"
 
     @property
     def proxy(self) -> str:

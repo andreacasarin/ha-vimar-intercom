@@ -900,3 +900,63 @@ def test_video_choice_survives_a_settings_validation_error(of, monkeypatch):
     }))
     assert result["errors"]["camera_target"] == "invalid_target"
     assert defaults["video_enabled"] is True
+
+
+def test_options_preserve_tcp_selection_when_saving_cloud_settings(of, monkeypatch):
+    flow = _options_flow(of, options={"local_transport": "tcp", "use_local_udp": False})
+    probe = []
+
+    async def register(**kwargs):
+        probe.append(kwargs)
+        return True, "OK"
+
+    monkeypatch.setattr(of, "_test_sip_registration", register)
+    result = asyncio.run(flow.async_step_settings({"local_proxy": "192.0.2.1", "use_local_udp": False}))
+    assert result["type"] == "create_entry"
+    assert result["data"]["local_transport"] == "tcp"
+    assert not result["data"]["use_local_udp"] and not probe
+
+
+def test_options_probe_changed_tcp_with_stored_identity_and_unregister(of, monkeypatch):
+    seen = []
+
+    async def register(**kwargs):
+        seen.append(kwargs)
+        return True, "OK"
+
+    monkeypatch.setattr(of, "_test_sip_registration", register)
+    flow = _options_flow(of, data={**ENTRY_DATA, "use_local_udp": True,
+                                  "local_domain": "local.example.test",
+                                  "device_name": "Synthetic HA", "device_uuid": "synthetic-uuid",
+                                  "device_imei": "000000000000000"})
+    result = asyncio.run(flow.async_step_settings({"local_proxy": "192.0.2.1", "use_local_udp": True,
+                                                  "local_transport": "tcp"}))
+    assert result["type"] == "create_entry" and result["data"]["local_transport"] == "tcp"
+    assert seen[0]["local_transport"] == "tcp" and seen[0]["unregister"]
+    assert seen[0]["sip_domain"] == "local.example.test"
+    assert seen[0]["device_name"] == "Synthetic HA"
+    assert seen[0]["device_uuid"] == "synthetic-uuid"
+
+
+def test_options_do_not_reprobe_unchanged_tcp_settings(of, monkeypatch):
+    async def register(**kwargs):
+        pytest.fail("unchanged settings disturbed the local binding")
+
+    monkeypatch.setattr(of, "_test_sip_registration", register)
+    flow = _options_flow(of, data={**ENTRY_DATA, "use_local_udp": True, "local_transport": "tcp"})
+    result = asyncio.run(flow.async_step_settings({"local_proxy": "192.0.2.1", "use_local_udp": True}))
+    assert result["type"] == "create_entry" and result["data"]["local_transport"] == "tcp"
+
+
+def test_local_transport_schema_offers_udp_and_tcp_with_legacy_default(of, monkeypatch):
+    defaults = {}
+
+    def optional(key, *, default):
+        defaults[key] = default
+        return key
+
+    monkeypatch.setattr(of.vol, "Optional", optional)
+    monkeypatch.setattr(of.vol, "In", tuple)
+    schema = of._network_schema({})
+    assert schema["local_transport"] == ("udp", "tcp")
+    assert defaults["local_transport"] == "udp"

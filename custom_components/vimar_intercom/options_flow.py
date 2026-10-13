@@ -33,6 +33,7 @@ from .config_flow import (
     KEY_INTERNAL_PANEL_TARGET,
     KEY_LOCAL_DOMAIN,
     KEY_LOCAL_PROXY,
+    KEY_LOCAL_TRANSPORT,
     KEY_LOCAL_UDP_PORT,
     KEY_MEDIA_ENC,
     KEY_PICG_TARGET,
@@ -193,6 +194,9 @@ def _network_schema(form: dict) -> dict:
             "use_local_udp",
             default=form.get(KEY_USE_LOCAL_UDP, True)
         ): bool,
+        vol.Optional(
+            KEY_LOCAL_TRANSPORT, default=form.get(KEY_LOCAL_TRANSPORT, "udp"),
+        ): vol.In(runtime.LOCAL_TRANSPORTS),
         vol.Optional(
             "local_udp_port",
             default=form.get(KEY_LOCAL_UDP_PORT, DEFAULT_LOCAL_UDP_PORT)
@@ -415,7 +419,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 user_input, current, use_local_udp, errors)
             actuators = self._settings_actuators(actuators_raw, errors)
             await self._settings_sip_test(
-                current, local_proxy, use_local_udp, local_udp_port, errors)
+                current, local_proxy, use_local_udp, local_udp_port, errors,
+                local_transport=user_input.get(KEY_LOCAL_TRANSPORT, current.get(KEY_LOCAL_TRANSPORT, "udp")))
 
             if not errors:
                 return self.async_create_entry(
@@ -427,6 +432,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                         **self._entry.options,
                         KEY_LOCAL_PROXY:    local_proxy,
                         KEY_USE_LOCAL_UDP:  use_local_udp,
+                        KEY_LOCAL_TRANSPORT: user_input.get(
+                            KEY_LOCAL_TRANSPORT, current.get(KEY_LOCAL_TRANSPORT, "udp")),
                         KEY_LOCAL_UDP_PORT: local_udp_port,
                         KEY_MEDIA_ENC:      media_enc,
                         "video_enabled": user_input.get(
@@ -579,6 +586,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     async def _settings_sip_test(
         self, current: dict, local_proxy: str, use_local_udp: bool, local_udp_port: int,
         errors: dict[str, str],
+        local_transport: str = "udp",
     ) -> None:
         # Il test SIP live va fatto solo se cambiano davvero i parametri SIP:
         # rifarlo a ogni salvataggio (es. modifica solo attuatori) fallirebbe per
@@ -587,6 +595,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             local_proxy    != current.get(KEY_LOCAL_PROXY, "")
             or use_local_udp  != current.get(KEY_USE_LOCAL_UDP, True)
             or local_udp_port != current.get(KEY_LOCAL_UDP_PORT, DEFAULT_LOCAL_UDP_PORT)
+            or local_transport != current.get(KEY_LOCAL_TRANSPORT, "udp")
         )
         if not _validate_ip(local_proxy):
             errors["local_proxy"] = "invalid_ip"
@@ -605,6 +614,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 # The entry is set up and registered with this identity:
                 # do not leave its binding on the test's closed socket.
                 unregister    = True,
+                local_transport = local_transport,
             )
             if not ok:
                 errors["local_proxy"] = "sip_registration_failed"

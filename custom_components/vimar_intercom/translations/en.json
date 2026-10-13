@@ -33,18 +33,20 @@
       },
       "network": {
         "title": "Local network",
-        "description": "Enter the local IP of the intercom. Plant: {plant}. Setup registers for real on the expected transport and, if that fails, tries the other one (local UDP or cloud TLS) and keeps whichever works. User: {sip_user}@{sip_domain}, MAC: {mac}. On error: {error_detail}",
+        "description": "Enter the local IP of the intercom. Plant: {plant}. Setup registers for real on the expected transport and, if that fails, tries the other one (local UDP/TCP or cloud TLS) and keeps whichever works. User: {sip_user}@{sip_domain}, MAC: {mac}. On error: {error_detail}",
         "data": {
           "local_proxy": "Intercom IP (local proxy)",
-          "use_local_udp": "Try local UDP first",
+          "use_local_udp": "Try local SIP first",
           "local_udp_port": "Local UDP port",
-          "device_name": "Device name"
+          "device_name": "Device name",
+          "local_transport": "Local SIP transport"
         },
         "data_description": {
           "local_proxy": "The local IP address of your Vimar intercom (e.g. 192.168.1.100).",
-          "use_local_udp": "Preset from the plant type in the QR. Due Fili Plus EVO plants only deliver calls through the cloud relay; if the first path fails, the other one is tried.",
+          "use_local_udp": "Preset from the plant type in the QR. If the selected local transport fails, setup tries cloud TLS (and vice versa). Registration alone does not verify call delivery.",
           "local_udp_port": "UDP port used by HA for local SIP. Default: 5060.",
-          "device_name": "The name the integration shows the intercom (MyName header). The pairing binds it to the credential: do not change it once registered."
+          "device_name": "The name the integration shows the intercom (MyName header). The pairing binds it to the credential: do not change it once registered.",
+          "local_transport": "UDP preserves existing local setups. TCP is experimental: registration may succeed while calls remain unavailable. Used only when local SIP is selected; cloud TLS is unchanged."
         }
       },
       "zeroconf_confirm": {
@@ -100,7 +102,7 @@
         "description": "SIP network and dynamic actuators. In the Actuators field paste the JSON list produced by tools/parse_rubrica.py, or go back to the menu and use \"Import actuators from rubrica.db\". {actuators_error}",
         "data": {
           "local_proxy": "Intercom IP address",
-          "use_local_udp": "Use local SIP UDP",
+          "use_local_udp": "Use local SIP",
           "local_udp_port": "Local UDP port",
           "voice_answer": "Voice answer (mic on /audio_ws)",
           "media_enc": "Media encryption (SRTP)",
@@ -122,7 +124,8 @@
           "allowed_users": "Users allowed to see rings and live media (empty = everyone)",
           "ring_webhook_url": "Ring-start webhook (URL)",
           "ring_end_webhook_url": "Ring-end webhook (URL)",
-          "video_bandwidth": "Video quality from the panel"
+          "video_bandwidth": "Video quality from the panel",
+          "local_transport": "Local SIP transport"
         },
         "data_description": {
           "voice_answer": "Who can answer the call by talking while it rings. Declared only: only connections using /audio_ws?voice_answer=1 (Echo Show, HomeKit via Scrypted). Never: talking never answers. Anyone: any connection with a microphone can answer; beware, a wall tablet whose microphone was left open can answer by itself with household noise.",
@@ -145,7 +148,8 @@
           "allowed_users": "Limits the card, the ring history (photos and clips) and /audio_ws to these Home Assistant users. Admins always. Empty = every logged-in user. It does NOT limit the camera entity or /av from the local network: anyone who can open the camera sees (and hears) the stream; and if the photo folder is under an HA media directory, photos and clips show up in the media browser for every user.",
           "ring_webhook_url": "GET (fire-and-forget) sent when a ring starts, e.g. to turn on a dummy switch (Scrypted Dummy Switch) linked to a Custom Doorbell Button. A failure is only logged as a warning and never stops the ring. Empty = off.",
           "ring_end_webhook_url": "GET (fire-and-forget) sent when the ring ends, answered, cancelled or timed out: same idea as above, to turn the switch off. Empty = off.",
-          "video_bandwidth": "Applies to every video from the panel: the card, the camera, /av and HomeKit. Automatic (recommended): 2 Mbit/s on local UDP, 256 kbit/s over the cloud relay, which loses a few packets in a hundred. 256 kbit/s: a lighter stream, fewer damaged frames on a lossy relay, but a smaller picture on some panels (a Tab 5S Up 40515 drops to 320x240 at 15 fps). 2 Mbit/s: the sharpest picture (720x576 at 24 fps on a 40515) and ten times the traffic; on a relay that loses packets (measured on a Tab 7S Up 40517) the video smears, freezes and lags."
+          "video_bandwidth": "Applies to every video from the panel: the card, the camera, /av and HomeKit. Automatic (recommended): 2 Mbit/s on local UDP, 256 kbit/s over the cloud relay, which loses a few packets in a hundred. 256 kbit/s: a lighter stream, fewer damaged frames on a lossy relay, but a smaller picture on some panels (a Tab 5S Up 40515 drops to 320x240 at 15 fps). 2 Mbit/s: the sharpest picture (720x576 at 24 fps on a 40515) and ten times the traffic; on a relay that loses packets (measured on a Tab 7S Up 40517) the video smears, freezes and lags.",
+          "local_transport": "UDP preserves existing local setups. TCP is experimental: registration may succeed while calls remain unavailable. Used only when local SIP is selected; cloud TLS is unchanged."
         }
       },
       "homekit": {

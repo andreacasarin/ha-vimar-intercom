@@ -84,7 +84,8 @@ class Rig:
         ha1 = hashlib.md5(f"{USER}:{DOMAIN}:{PASSWORD}".encode()).hexdigest()
         for k, v in dict(SIP_USER=USER, SIP_DOMAIN=DOMAIN, SIP_PASSWORD=PASSWORD, SIP_HA1=ha1,
                          LOCAL_PROXY="127.0.0.1", SIP_PROXY="localhost",
-                         USE_LOCAL_UDP=self.transport == "udp", LOCAL_UDP_PORT=0,
+                         USE_LOCAL_UDP=self.transport != "tls", LOCAL_UDP_PORT=0,
+                         LOCAL_TRANSPORT="tcp" if self.transport == "tcp" else "udp",
                          INTERCOM=f"sip:{PANEL}@{DOMAIN}", DEVICE_UUID="uuid-test",
                          DEVICE_IMEI="000", AWAY_MESSAGE_FILE="", AWAY_MESSAGE_TEXT="",
                          AWAY_MESSAGE_TTS="", AWAY_MESSAGE_DELAY=0,

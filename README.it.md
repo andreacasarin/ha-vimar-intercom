@@ -41,6 +41,8 @@ Arrivi dall'integrazione originale di noiseheroes-lab? Prima toglila: [Migrazion
 4. In **Configura** scarica la rubrica del tuo impianto (dal citofono, dal cloud Vimar o da un file
    `rubrica.db`): imposta la porta, gli attuatori e gli indirizzi a cui vanno i comandi.
 
+Il TCP locale è disponibile come **opzione sperimentale esplicita** nelle impostazioni di rete. Non dimostra il funzionamento offline del 40517; il TLS cloud resta il suo predefinito. Vedi [l’indagine](docs/LOCAL_SUPPORT_INVESTIGATION.md).
+
 Serve Home Assistant 2025.10 o successivo e ffmpeg sull'host. Installazione manuale, tutte le opzioni e
 la rubrica: [Configurazione](https://github.com/ha-vimar/ha-vimar-intercom/blob/main/docs/CONFIGURATION.it.md).
 

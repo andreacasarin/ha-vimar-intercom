@@ -29,7 +29,7 @@ from .const import (
     SIP_PORT as CLOUD_SIP_PORT,
 )
 from .sip_client import _resolve_sip_targets
-from .sip_message import _challenge_params
+from .sip_message import MAX_SIP_BODY, _challenge_params, _split_stream
 
 if TYPE_CHECKING:
     from .options_flow import OptionsFlowHandler
@@ -49,6 +49,7 @@ KEY_MAC           = "mac"
 KEY_LOCAL_DOMAIN  = "local_domain"
 KEY_CLOUD_DOMAIN  = "cloud_domain"
 KEY_USE_LOCAL_UDP  = "use_local_udp"
+KEY_LOCAL_TRANSPORT = "local_transport"
 KEY_LOCAL_UDP_PORT = "local_udp_port"
 KEY_ACTUATORS      = "actuators"
 KEY_MEDIA_ENC      = "media_enc"
@@ -102,12 +103,13 @@ async def _test_sip_registration(
     device_name: str = MY_NAME,
     timeout: float = 8.0,
     unregister: bool = False,
+    local_transport: str = "udp",
 ) -> tuple[bool, str]:
-    """Register over local UDP; returns (success, message).
+    """Register over local UDP or explicitly selected TCP; returns (success, message).
 
     The REGISTER carries the same identity the integration will use (MyName,
-    Mobile-IMEI, +sip.instance): the intercom binds a pairing to that identity
-    and refuses a different one with 503, so a test without it proves nothing.
+    Mobile-IMEI, +sip.instance) so an identity mismatch does not confound the
+    probe. A 503 alone cannot identify the policy that rejected the request.
 
     unregister: once the test has passed, remove its binding (Expires: 0, same
     Contact). With the integration running, the test registration takes over
@@ -121,26 +123,34 @@ async def _test_sip_registration(
         uri      = f"sip:{sip_domain}"
         target   = (local_proxy, DEFAULT_LOCAL_SIP_PORT)
 
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        tcp = local_transport == "tcp"
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM if tcp else socket.SOCK_DGRAM)
         sock.settimeout(timeout)
         try:
             # The configured port, as the integration will use it; when it is
             # taken (the integration itself is running) any port will do.
-            try:
-                sock.bind(("0.0.0.0", local_udp_port))
-            except OSError:
-                sock.bind(("0.0.0.0", 0))
+            if not tcp:
+                try:
+                    sock.bind(("0.0.0.0", local_udp_port))
+                except OSError:
+                    sock.bind(("0.0.0.0", 0))
             sock.connect(target)
             my_ip, my_port = sock.getsockname()[:2]
+            send_register = sock.sendall if tcp else sock.send
+            buffer = b""
+            messages = []
+            auth_name = "Authorization"
 
             def make_register(auth_hdr: str | None = None, seq: int = 1,
                               expires: int = 60) -> bytes:
-                contact = f"<sip:{sip_user}@{my_ip}:{my_port}>"
+                transport = ";transport=tcp" if tcp else ""
+                alias = "alias;" if tcp else ""
+                contact = f"<sip:{sip_user}@{my_ip}:{my_port}{transport}>"
                 if device_uuid:
                     contact += f';+sip.instance="<urn:uuid:{device_uuid}>"'
                 lines = [
                     f"REGISTER {uri} SIP/2.0",
-                    f"Via: SIP/2.0/UDP {my_ip}:{my_port};branch=z9hG4bK{secrets.token_hex(4)};rport",
+                    f"Via: SIP/2.0/{local_transport.upper()} {my_ip}:{my_port};{alias}branch=z9hG4bK{secrets.token_hex(4)};rport",
                     "Max-Forwards: 70",
                     f"To: <sip:{sip_user}@{sip_domain}>",
                     f"From: <sip:{sip_user}@{sip_domain}>;tag={from_tag}",
@@ -151,10 +161,12 @@ async def _test_sip_registration(
                     f"User-Agent: {USER_AGENT}",
                     f"MyName: {device_name}",
                 ]
+                if tcp:
+                    lines.insert(2, f"Route: <sip:{local_proxy};transport=tcp;lr>")
                 if device_imei:
                     lines.append(f"Mobile-IMEI: {device_imei}")
                 if auth_hdr:
-                    lines.append(f"Authorization: {auth_hdr}")
+                    lines.append(f"{auth_name}: {auth_hdr}")
                 lines += ["Content-Length: 0", "", ""]
                 return "\r\n".join(lines).encode()
 
@@ -164,16 +176,33 @@ async def _test_sip_registration(
                     return
                 try:
                     sock.settimeout(min(timeout, 2.0))
-                    sock.send(make_register(auth_hdr=auth_hdr, seq=seq, expires=0))
+                    send_register(make_register(auth_hdr=auth_hdr, seq=seq, expires=0))
                     read_final()
                 except OSError as exc:  # socket.timeout included
                     _LOGGER.debug("SIP test: unregister not confirmed (%s)", exc)
 
             def read_final() -> str:
                 """Skip provisional responses (100 Trying), return the final one."""
+                nonlocal buffer
                 deadline = time.monotonic() + timeout
                 while time.monotonic() < deadline:
-                    message = sock.recv(65535).decode(errors="replace")
+                    if tcp:
+                        if not messages:
+                            chunk = sock.recv(65535)
+                            if not chunk:
+                                raise OSError("connection closed by the intercom")
+                            buffer += chunk
+                            if len(buffer) > MAX_SIP_BODY:
+                                raise OSError("SIP stream buffer overflow")
+                            frames, buffer = _split_stream(buffer)
+                            if buffer is None:
+                                raise OSError("Malformed SIP stream")
+                            messages.extend(frames)
+                            if not messages:
+                                continue
+                        message = messages.pop(0)
+                    else:
+                        message = sock.recv(65535).decode(errors="replace")
                     parts = message.split("\r\n", 1)[0].split(" ")
                     if len(parts) > 1 and parts[1].isdigit() and int(parts[1]) >= 200:
                         return message
@@ -181,12 +210,12 @@ async def _test_sip_registration(
 
             def refused(first: str) -> str:
                 if " 503" in first:
-                    return (f"{first}: the intercom refuses this identity. It is "
-                            "paired to another device name or identifier, or this "
-                            "plant does not accept local UDP registrations.")
+                    return (f"{first}: local {local_transport.upper()} registration was rejected. This response "
+                            "does not distinguish a device identity restriction from a local "
+                            f"{local_transport.upper()} policy restriction.")
                 return f"Unexpected response: {first}"
 
-            sock.send(make_register(seq=1))
+            send_register(make_register(seq=1))
             response = read_final()
             first = response.split("\r\n", 1)[0]
             if " 200" in first:
@@ -196,6 +225,8 @@ async def _test_sip_registration(
                 return False, refused(first)
 
             challenge = _parse_challenge(response)
+            if tcp and " 407" in first:
+                auth_name = "Proxy-Authorization"
             if not challenge.get("nonce") or not challenge.get("realm"):
                 return False, "Challenge without nonce/realm"
             auth = _digest_header(
@@ -204,7 +235,7 @@ async def _test_sip_registration(
                 qop=challenge.get("qop", ""), opaque=challenge.get("opaque", ""),
                 cnonce=secrets.token_hex(4),
             )
-            sock.send(make_register(auth_hdr=auth, seq=2))
+            send_register(make_register(auth_hdr=auth, seq=2))
             first2 = read_final().split("\r\n", 1)[0]
             if " 200" in first2:
                 drop_binding(auth, 3)
@@ -374,6 +405,7 @@ async def _test_cloud_registration(
 async def _probe_transport(
     credentials: dict, *, local_proxy: str, local_udp_port: int,
     identity: dict, prefer_local: bool, local_domain: str = "",
+    local_transport: str = "udp",
 ) -> tuple[bool, bool, str]:
     """Find out which transport really works: (use_local_udp, ok, message).
 
@@ -394,6 +426,7 @@ async def _probe_transport(
             device_imei=identity.get("device_imei", ""),
             device_uuid=identity.get("device_uuid", ""),
             device_name=identity.get("device_name") or MY_NAME,
+            local_transport=local_transport,
         )
 
     async def _cloud() -> tuple[bool, str]:
@@ -407,7 +440,7 @@ async def _probe_transport(
             device_name=identity.get("device_name") or MY_NAME,
         )
 
-    tries = [(True, "local UDP", _local), (False, "cloud TLS", _cloud)]
+    tries = [(True, f"local {local_transport.upper()}", _local), (False, "cloud TLS", _cloud)]
     if not prefer_local:
         tries.reverse()
     (first_local, first_name, first), (_, second_name, second) = tries
@@ -715,6 +748,7 @@ class VimarIntercomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             local_proxy    = user_input.get("local_proxy", "").strip()
             use_local_udp  = user_input.get("use_local_udp", profile.prefers_local_udp)
             local_udp_port = int(user_input.get("local_udp_port", DEFAULT_LOCAL_UDP_PORT))
+            local_transport = user_input.get(KEY_LOCAL_TRANSPORT, "udp")
             device_name    = str(user_input.get("device_name") or MY_NAME).strip()
 
             if not device_name:
@@ -741,6 +775,7 @@ class VimarIntercomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     identity=self._identity,
                     prefer_local=use_local_udp,
                     local_domain=self._local_test_domain(),
+                    local_transport=local_transport,
                 )
                 self._qr_error = msg
                 if not ok:
@@ -757,13 +792,14 @@ class VimarIntercomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     **self._identity,
                     KEY_LOCAL_PROXY:    local_proxy,
                     KEY_USE_LOCAL_UDP:  use_local_udp,
+                    KEY_LOCAL_TRANSPORT: local_transport,
                     KEY_LOCAL_UDP_PORT: local_udp_port,
                 }
                 extra = {}
                 if fallback:
                     _LOGGER.warning("Setup: %s", fallback)
                     data[KEY_SETUP_NOTE] = fallback
-                    names = {True: "local UDP", False: "cloud TLS"}
+                    names = {True: f"local {local_transport.upper()}", False: "cloud TLS"}
                     extra = {"description": "transport_fallback",
                              "description_placeholders": {
                                  "tried": names[use_local_wanted],
@@ -780,6 +816,7 @@ class VimarIntercomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({
                 vol.Required("local_proxy", **_default(self._discovered.get("local_proxy"))): str,
                 vol.Optional("use_local_udp", default=profile.prefers_local_udp): bool,
+                vol.Optional(KEY_LOCAL_TRANSPORT, default="udp"): vol.In(runtime.LOCAL_TRANSPORTS),
                 vol.Optional(
                     "local_udp_port", default=DEFAULT_LOCAL_UDP_PORT
                 ): vol.All(vol.Coerce(int), vol.Range(min=1024, max=65535)),

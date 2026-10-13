@@ -357,8 +357,8 @@ def test_bye_perso_viene_ritrasmesso(monkeypatch):
             assert (await rig.hub.async_call())[0]
             lost = lose_first(rig.peer, "BYE")
             await rig.hub.async_hangup()
-            assert lost
             await rig.peer.wait_for(is_("BYE"), timeout=3)
+            assert lost
             assert rig.hub.status == "idle"
     run(s())
 
