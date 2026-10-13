@@ -305,7 +305,7 @@ def test_tcp_probe_frames_responses_authenticates_and_removes_binding(cf, monkey
     assert ";transport=tcp>" in seen[0]
     assert 'Mobile-IMEI: 000000000000000' in seen[0]
     assert 'MyName: Synthetic HA' in seen[0]
-    assert '+sip.instance="<urn:uuid:synthetic-uuid>"' in seen[0]
+    assert '+sip.instance="<urn:uuid:000000000000000>"' in seen[0]
     assert f"{'Proxy-Authorization' if proxy_auth else 'Authorization'}: Digest" in seen[1]
     assert "Expires: 0" in seen[2]
     assert seen[0].split("Contact: ")[1].split("\r\n")[0] == seen[2].split("Contact: ")[1].split("\r\n")[0]

@@ -199,7 +199,7 @@ def _contact_hdr(include_pn=True):
     if R.USE_LOCAL_UDP:
         transport = "" if R.use_udp() else ";transport=tcp"
         contact = f"<sip:{R.SIP_USER}@{MY_IP}:{port}{transport}>"
-        contact += f';+sip.instance="<urn:uuid:{R.DEVICE_UUID}>"'
+        contact += f';+sip.instance="<urn:uuid:{R.sip_instance_id()}>"'
         contact += f";expires={3600 if R.use_udp() else 900}"
         return contact
     # TLS/cloud mode
@@ -212,7 +212,7 @@ def _contact_hdr(include_pn=True):
                         f";pn-call-str=IC_MSG;pn-call-snd=notes_of_the_optimistic.caf"
                         f";q=0.00;domain-name={R.SIP_DOMAIN}")
     contact = f"<{contact_uri}>"
-    contact += f';+sip.instance="<urn:uuid:{R.DEVICE_UUID}>"'
+    contact += f';+sip.instance="<urn:uuid:{R.sip_instance_id()}>"'
     contact += f";expires={'5184000' if C.PN_TOKEN else '3600'}"
     return contact
 
@@ -980,7 +980,7 @@ def _record_bindings(hdrs) -> None:
     try:
         DEVICES.forget_bindings()
         for contact in _split_contacts(hdrs):
-            DEVICES.note_binding(contact, own_device_id=R.DEVICE_UUID, own_name=R.DEVICE_NAME)
+            DEVICES.note_binding(contact, own_device_id=R.sip_instance_id(), own_name=R.DEVICE_NAME)
     except Exception as e:  # noqa: BLE001
         _LOGGER.debug("Device inventory (bindings) skipped: %s", e)
 
@@ -1032,7 +1032,7 @@ def _granted_expires(hdrs) -> int | None:
     share this SIP user and their remaining lifetime says nothing about ours.
     Then the Expires header.
     """
-    instance = f"urn:uuid:{R.DEVICE_UUID}" if R.DEVICE_UUID else ""
+    instance = f"urn:uuid:{R.sip_instance_id()}" if R.sip_instance_id() else ""
     ours = f"{MY_IP}:{_my_port()}" if MY_IP else ""
     for value in _split_contacts(hdrs):
         if (instance and instance in value) or (ours and ours in value):
@@ -1268,7 +1268,7 @@ async def do_call(target=None, silence_limit=None, answer_timeout=None, ring_tim
              f"Call-ID: {cid}\r\n"
              f"CSeq: {seq} INVITE\r\n"
              f"Contact: {_simple_contact()}"
-             f';+sip.instance="<urn:uuid:{R.DEVICE_UUID}>"\r\n'
+             f';+sip.instance="<urn:uuid:{R.sip_instance_id()}>"\r\n'
              f"User-Agent: {C.USER_AGENT}\r\n"
              f"Supported: replaces,outbound,gruu,timer\r\n"
              f"Allow: INVITE,ACK,BYE,CANCEL,OPTIONS,NOTIFY,INFO,MESSAGE,UPDATE\r\n"

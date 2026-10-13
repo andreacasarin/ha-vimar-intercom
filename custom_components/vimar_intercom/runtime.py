@@ -205,6 +205,11 @@ def new_device_identity() -> dict[str, str]:
     }
 
 
+def sip_instance_id() -> str:
+    """VIEW uses Mobile-IMEI as its local TCP Contact instance identifier."""
+    return DEVICE_IMEI if USE_LOCAL_UDP and LOCAL_TRANSPORT == "tcp" else DEVICE_UUID
+
+
 def new_av_key() -> str:
     """A fresh /av key: 32 URL-safe characters, from the OS's CSPRNG."""
     return _secrets.token_urlsafe(24)

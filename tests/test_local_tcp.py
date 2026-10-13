@@ -113,3 +113,20 @@ def test_tcp_connect_uses_local_endpoint_without_tls_or_cloud_dns(monkeypatch):
         connection.assert_awaited_once_with("127.0.0.1", sip.C.LOCAL_SIP_PORT)
         assert sip._my_port() == R.LOCAL_UDP_PORT
     run(scenario())
+
+
+@pytest.mark.parametrize("local, transport, expected", [
+    (True, "tcp", "000000000000000"),
+    (True, "udp", "synthetic-uuid"),
+    (False, "tcp", "synthetic-uuid"),
+])
+def test_tcp_contact_uses_views_single_device_identifier(monkeypatch, local, transport, expected):
+    R.configure({"use_local_udp": local, "local_transport": transport,
+                 "device_imei": "000000000000000", "device_uuid": "synthetic-uuid"})
+    monkeypatch.setattr(sip, "MY_IP", "127.0.0.1")
+    monkeypatch.setattr(sip, "_my_port", lambda: 12345)
+    assert f'+sip.instance="<urn:uuid:{expected}>"' in sip._contact_hdr()
+    # The registrar may rewrite the address; identify our lifetime by instance.
+    headers = {"contact": f'<sip:other@127.0.0.2>;expires=7, <sip:us@127.0.0.3>'
+               f';+sip.instance="<urn:uuid:{expected}>";expires=900'}
+    assert sip._granted_expires(headers) == 900

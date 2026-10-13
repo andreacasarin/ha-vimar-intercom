@@ -193,3 +193,34 @@ def test_setup_stores_explicit_local_tcp_without_changing_profile_defaults(cf, m
     assert result["data"]["use_local_udp"] is True
     assert result["data"]["local_transport"] == "tcp"
     assert calls == ["local"]
+
+
+def test_saving_after_registration_only_preserves_credentials_and_identity(cf, monkeypatch):
+    calls = []
+
+    async def local(**kwargs):
+        calls.append(kwargs)
+        return True, "Registration succeeded"
+
+    monkeypatch.setattr(cf, "_test_sip_registration", local)
+    monkeypatch.setattr(cf, "_test_cloud_registration", lambda **kw: pytest.fail("cloud fallback"))
+    flow = cf.VimarIntercomConfigFlow()
+    flow._credentials = {**CREDENTIALS, "local_domain": "local.example.test"}
+
+    async def unique_id(uid): pass
+
+    flow.async_set_unique_id = unique_id
+    flow._abort_if_unique_id_configured = lambda: None
+    flow.async_show_form = lambda **kw: {"type": "form", **kw}
+    flow.async_create_entry = lambda **kw: {"type": "create_entry", **kw}
+    values = {"local_proxy": "127.0.0.1", "use_local_udp": True, "local_transport": "tcp",
+              "device_name": "Synthetic DEV", "registration_only": True}
+    assert asyncio.run(flow.async_step_network(values))["type"] == "form"
+    values["registration_only"] = False
+    result = asyncio.run(flow.async_step_network(values))
+    assert result["type"] == "create_entry"
+    probe = dict(calls[0])
+    assert probe.pop("unregister") is True
+    assert probe == calls[1]
+    for key in ("device_imei", "device_uuid", "device_name", "sip_user", "sip_password"):
+        assert result["data"][key] == calls[1][key]

@@ -146,8 +146,9 @@ async def _test_sip_registration(
                 transport = ";transport=tcp" if tcp else ""
                 alias = "alias;" if tcp else ""
                 contact = f"<sip:{sip_user}@{my_ip}:{my_port}{transport}>"
-                if device_uuid:
-                    contact += f';+sip.instance="<urn:uuid:{device_uuid}>"'
+                instance = device_imei if tcp and device_imei else device_uuid
+                if instance:
+                    contact += f';+sip.instance="<urn:uuid:{instance}>"'
                 lines = [
                     f"REGISTER {uri} SIP/2.0",
                     f"Via: SIP/2.0/{local_transport.upper()} {my_ip}:{my_port};{alias}branch=z9hG4bK{secrets.token_hex(4)};rport",
