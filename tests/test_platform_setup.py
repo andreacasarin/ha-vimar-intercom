@@ -222,6 +222,15 @@ def test_camera_is_added_and_stops_the_stream_when_the_video_ends(monkeypatch):
     assert base_added == [cam] and hub.video_end_cbs == [cam._stop_stream]
     removers[0]()  # entity removed: the callback goes away with it
     assert hub.video_end_cbs == []
+    writes = []
+    cam.async_write_ha_state = lambda: writes.append(cam.available)
+    hub.registered = False
+    cam._on_state_change()
+    hub.registered = True
+    cam._on_state_change()
+    assert writes == [False, True]
+    removers[1]()
+    assert cam._on_state_change not in hub.state_cbs
 
 
 def test_camera_leaves_a_missing_or_recording_stream_alone():
