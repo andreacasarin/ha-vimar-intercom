@@ -74,6 +74,8 @@ the version number alone does not identify this installation.
 4. Save. The options flow tests registration before saving and reloads the
    integration on success. This is a real registration, not an offline form check.
    Confirm diagnostics show `tcp-local`; a Connected sensor alone is insufficient.
+   If registration is refused, return to cloud mode or restore the backup rather
+   than deleting the entry or changing its pairing identity.
 5. Restart HA once more while WAN remains allowed and verify fresh TCP
    registration. This checks reconnection rather than just the options probe.
 
