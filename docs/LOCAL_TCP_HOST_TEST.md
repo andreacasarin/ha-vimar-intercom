@@ -1,5 +1,9 @@
 # Experimental local TCP test on an existing Home Assistant host
 
+**Paused, not executed on production by this investigation.** Retained for a
+future controlled trial; see the [current handoff](LOCAL_SUPPORT_INVESTIGATION.md)
+before deciding whether new evidence justifies resuming.
+
 Branch: `experimental/local-tcp-production-test` in
 `andreacasarin/ha-vimar-intercom`. This branch merges upstream main and includes
 the experimental TCP transport, VIEW-format instance identity and camera

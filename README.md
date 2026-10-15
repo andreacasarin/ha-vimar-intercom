@@ -1,5 +1,11 @@
 # Vimar Intercom — Home Assistant integration
 
+**Experimental local-TCP investigation — paused.** This branch provides TCP
+transport and synthetic regression tests; local registration worked on a 40517,
+but calls returned 503. Fully offline support is unproven.
+Start with the [developer handoff and findings](docs/LOCAL_SUPPORT_INVESTIGATION.md)
+and [feature request #179](https://github.com/ha-vimar/ha-vimar-intercom/issues/179).
+
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange?style=for-the-badge)](https://hacs.xyz/docs/faq/custom_repositories/) [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.10%2B-41BDF5?style=for-the-badge&logo=home-assistant&logoColor=white)](https://www.home-assistant.io/) [![Tests](https://img.shields.io/github/actions/workflow/status/ha-vimar/ha-vimar-intercom/validate.yml?branch=main&label=tests&style=for-the-badge)](https://github.com/ha-vimar/ha-vimar-intercom/actions/workflows/validate.yml) [![Last commit](https://img.shields.io/github/last-commit/ha-vimar/ha-vimar-intercom?style=for-the-badge)](https://github.com/ha-vimar/ha-vimar-intercom/commits/main) [![License](https://img.shields.io/github/license/ha-vimar/ha-vimar-intercom?style=for-the-badge)](https://github.com/ha-vimar/ha-vimar-intercom/blob/main/LICENSE)
 
 [![Open your Home Assistant instance and open this repository in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ha-vimar&repository=ha-vimar-intercom&category=integration)

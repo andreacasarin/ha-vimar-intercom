@@ -1,35 +1,123 @@
 # Fully local support investigation: Tab 7S Up (40517)
 
-For the separate production-host comparison branch prepared on 2026-10-15,
-see [Local TCP host test](LOCAL_TCP_HOST_TEST.md). That guide includes backup,
-manual installation, transport selection and rollback. Later owner-operated
-VIEW captures and the limits of the WAN-blocked observations are summarized in
+## Paused handoff — 2026-10-15
+
+**The owner has paused this investigation. Local TCP registration works in the
+experimental setup; real local calls fail. Fully offline operation has not been
+established.** This is a starting point for further investigation, not a working
+local-support release or a conclusion that local support can never work.
+
+Shareable branch:
+[`andreacasarin/ha-vimar-intercom:experimental/local-tcp-production-test`](https://github.com/andreacasarin/ha-vimar-intercom/tree/experimental/local-tcp-production-test).
+Feature request and field findings:
 [upstream issue #179](https://github.com/ha-vimar/ha-vimar-intercom/issues/179).
-Successful offline operation remains unestablished.
+Working-cloud compatibility report:
+[upstream issue #172](https://github.com/ha-vimar/ha-vimar-intercom/issues/172).
 
-Status as of 2026-10-12: **no successful offline operation established**.
-This is an investigation record, not a claim of local compatibility.
-The available 2023 update package has been inspected and its outer archive
-extracted; its filesystem payloads are encrypted, so the rejection implementation
-remains unknown. No live probes, calls, firewall
-changes, Home Assistant restarts or firmware changes were performed for this
-code review.
+Hardware: Elvox Tab 7S Up 40517; SW 2.1.0203 [prod], rev67313-2123
+(2025-06-10), FW 1.06, HW 00-02. The branch merges upstream main at
+`c30f419` (1.0.23). Its integration version is unchanged; identify this branch
+by Git revision rather than the version number alone.
 
-## Evidence and limits
+### Reusable implementation
 
-| Evidence | Source | What it establishes |
+- Opt-in local TCP in setup and network options, using the existing account's
+  local proxy/domain. UDP remains the default for existing local entries;
+  cloud TLS retains its existing path.
+- TCP Route/Contact/Via handling, VIEW-style Mobile-IMEI/Contact instance
+  alignment, registration lifetime, reliable stream framing, Digest handling,
+  reconnect/renewal and no UDP retransmission or runtime cloud fallback in TCP
+  mode. This reuses the established outbound TCP stream, without a separate
+  inbound TCP listener.
+- Camera availability notifications following registration state changes.
+- Synthetic loopback tests for registration, 401/407 challenges, framing,
+  outgoing/incoming dialogs, routing, reconnect and identity preservation.
+
+Start in `custom_components/vimar_intercom/{config_flow,options_flow,runtime,sip_client}.py`.
+The camera fix is in `camera.py`. See `tests/test_local_tcp.py`,
+`tests/test_config_flow_registration.py`, `tests/test_transport_probe.py`,
+`tests/test_config_flow_steps.py` and `tests/harness/` for reproducible protocol tests.
+No Docker development stack, Docker Desktop media-address override, firmware,
+app binaries, captures, keys or installation credentials are included here.
+The separate general-purpose Docker development contribution is
+[upstream PR #183](https://github.com/ha-vimar/ha-vimar-intercom/pull/183).
+
+Last code validation before this documentation-only handoff:
+**2,347 passed, 1 skipped, 103 deselected; 97.11% line/branch coverage; Ruff clean.**
+The full run used synthetic peers and excluded live hardware, media and browser
+markers:
+
+```bash
+python -m pytest tests -m 'not live and not media and not browser' \
+  --cov=custom_components/vimar_intercom --cov-branch --cov-report=term-missing
+ruff check .
+```
+
+### Confirmed findings and limits
+
+| Test | Result | What remains unknown |
 |---|---|---|
-| Cloud TLS registration, phonebook import, indoor calls, outdoor video and listening work | Owner's report, SW 2.1.0203, build rev67313-2123, FW 1.06, HW 00-02 | Working cloud baseline; microphone transmission and offline operation are not established by this report |
-| Local UDP REGISTER returns `503 You're not allowed to make this operation`, using existing credentials and device identity | Owner's report | A SIP responder is reachable; the response alone does not identify an identity or transport policy |
-| Local HTTP phonebook connection refused | Owner's report | That endpoint is unavailable in the tested configuration; does not establish the absence of all local interfaces |
-| Local TCP registration succeeds with a Vimar-compatible User-Agent; incoming calls absent and outgoing INVITEs rejected | Another installation described in [HARDWARE.md](HARDWARE.md) | A lead to reproduce on the owner's installation, not a result measured there |
-| Setting stored `video_enabled` to true restores cloud video | Owner's report | An integration video-offer setting affected that session; the original QR field's semantics remain unverified |
+| Cloud integration baseline | Registration/renewal, phonebook, indoor ringing, outdoor video and listening work | Complete two-way audio and offline acceptance were not established |
+| Local UDP REGISTER | SIP 503 denial | Response alone does not distinguish identity and transport policy |
+| Local TCP with separate development pairing | Authentication/registration succeeded, including HA restart | Registration does not establish call permissions |
+| Local TCP indoor/outdoor INVITE with confirmed destinations | Immediate 503, approximately 5–8 ms, without a new 401/407 challenge | Exact PBX policy producing rejection |
+| Local HTTP phonebook on port 80 | Connection refused | Availability of other supported local interfaces |
+| Official iPhone VIEW, intercom WAN allowed | Cloud TLS 1.3 signaling on TCP 7042, cloud API TLS on TCP 443; UDP to the public server with patterns consistent with audio/video | Encrypted REGISTER/INVITE/SDP/PUBLISH contents |
+| Official VIEW, intercom WAN blocked by owner | Indoor ring only; outdoor call failed without a specific error. Fresh cloud TLS plus 687 outgoing and zero returning UDP datagrams from the media server; no direct intercom traffic observed | Firewall enforcement, IPv6 coverage, retained sessions and how the indoor ring was delivered |
+| Production host topology | Owner reported a Docker bridge network | No production-host or Linux host-network local call test was performed in this investigation |
+| Firmware/updater static analysis | Update archives extracted; Tab Up filesystem payloads remain encrypted | Matching readable PBX implementation and firmware key |
 
-The owner's compatibility report is [upstream issue #172](https://github.com/ha-vimar/ha-vimar-intercom/issues/172).
-Its contents could not be retrieved during this review; the table above uses
-the owner's supplied account, not independently read issue comments.
-Keep installation addresses, identifiers, credentials and captures out of this
-document and public contributions.
+The successful WAN-enabled outdoor-call capture had 502 returning UDP datagrams
+from the public server. Other than UDP 5060 signaling, UDP payloads were not
+saved: audio/video/RTCP classifications are metadata-based inferences.
+No direct phone/intercom local fallback was observed in these filtered captures.
+The phone and HA host were not both isolated from WAN, and existing intercom
+cloud state was not conclusively eliminated. **Indoor ringing is not proof of
+offline calling.** TLS was not intercepted or weakened.
+
+The development test used Docker Desktop and routed private subnets. Docker/NAT,
+subnet policy, identity binding, presence publication, cached authentication,
+call identifiers and SDP differences remain hypotheses. An explicit fast 503
+is different evidence from an accepted call with missing media; neither a port
+forward nor a successful REGISTER identifies a fix for the former.
+
+### Useful next evidence
+
+1. A demonstrated official VIEW local call on comparable hardware with verified
+   WAN denial and media paths, preferably from the same subnet.
+2. A supported provisioning/connection setting, app-provided SIP diagnostics,
+   or vendor documentation identifying local call permissions and initialization.
+3. A controlled Linux host-network comparison that holds identity, destinations
+   and other settings constant, to test the Docker Desktop/bridge hypothesis.
+4. An authorized matching readable firmware/configuration export or relevant
+   vendor sources exposing the PBX routing/rejection predicates.
+
+The inspected Android VIEW artifact supplies implementation leads, not proof
+of iPhone behavior or a working official local call. Presence, authorization,
+Call-ID and SDP differences should be tested separately after identifying a
+viable local baseline; do not send guessed vendor messages or actuator tokens.
+Firmware modification is not justified by the available evidence.
+
+### Pause and resumption
+
+Both Mac development projects are stopped, with containers and state retained.
+Branches, private backups, firmware-analysis artifacts and USB captures remain
+on the owner's workstation outside public contributions. No production HA,
+intercom setting or firewall rule was changed by the pause operation. The
+owner's earlier WAN block was not changed or independently verified during pause.
+No new calls or actuators were triggered.
+
+Do not automatically resume live tests. If useful new evidence arrives, first
+agree a controlled trial and retain the working cloud configuration and rollback.
+[Local TCP host test](LOCAL_TCP_HOST_TEST.md) contains the previously prepared
+backup/install/rollback procedure; it has **not** been executed on production by
+this investigation. The offline acceptance procedure later in this document
+remains unmet.
+
+The following sections retain the historical static-analysis notes and protocol
+comparison. Statements scoped to those earlier reviews should not be read as
+new live-test results. Firmware, credentials, private paths and raw evidence
+must remain private; use synthetic identities in public reproductions.
 
 ## Firmware package findings
 
