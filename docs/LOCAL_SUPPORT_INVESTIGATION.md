@@ -81,6 +81,40 @@ call identifiers and SDP differences remain hypotheses. An explicit fast 503
 is different evidence from an accepted call with missing media; neither a port
 forward nor a successful REGISTER identifies a fix for the former.
 
+### Follow-up: development QR and same-VLAN VIEW captures (2026-10-15)
+
+The saved development pairing QR was decoded offline: **`CLOUD=1`** (home first,
+then cloud). This rules out `CLOUD=2` for that QR, not for every device pairing;
+the active iPhone pairing's policy was not independently checked. Neither the
+token nor other QR fields were published.
+
+Two further owner-operated outdoor-call captures used official iPhone VIEW
+2.18.0 with the phone reported on the intercom VLAN and internet access allowed
+for both. Docker remained stopped. Both showed fresh TLS 1.3 cloud SIP on TCP
+7042, cloud API TLS on TCP 443 and call-shaped UDP to the public SIP server:
+
+| Same-VLAN capture | Outgoing UDP | Incoming UDP | Direct intercom traffic / SIP 5060–5061 |
+|---|---|---|---|
+| First call | 246 | 377 | None captured |
+| Repeat | 437 | 678 | None captured |
+
+The observed private TCP source was in the intercom's address range; the second
+phone-side address seen during an earlier Wi-Fi-restricted attempt did not
+appear. VLAN membership, subnet mask and client isolation were not independently
+inspected at the router/AP. UDP counts describe flows to/from the public server,
+not decoded RTP. Metadata patterns suggest bidirectional audio and incoming
+video; TLS and the absence of saved media payloads limit deeper comparison.
+
+The preceding attempt with phone Wi-Fi internet denied failed to establish
+cloud SIP and showed cloud API traffic from a second source of unconfirmed
+interface origin. It is not a clean same-VLAN/internet-allowed baseline.
+
+These repeats show that same-VLAN placement did not make VIEW select a direct
+local call path in the tested configuration. They do not complete the proposed
+integration/plain-client test without Docker NAT or prove local support
+impossible. Investigation is paused again after these limited follow-ups;
+captures remain private and Docker remains stopped.
+
 ### Useful next evidence
 
 1. A demonstrated official VIEW local call on comparable hardware with verified
