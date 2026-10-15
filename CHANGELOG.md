@@ -6,6 +6,35 @@ Italian and are kept as they were written.
 
 ## [Unreleased]
 
+## [1.0.23] - 2026-10-14
+
+### Enhancements
+
+- Propose a declared PICG as the Call Home destination when it differs from the SGA, preserving the current destination otherwise and distinguishing unavailable lookups from missing replies ([#173](https://github.com/ha-vimar/ha-vimar-intercom/pull/173)).
+- Enable or disable video in outgoing intercom calls from Settings, including when the pairing QR initially disables it ([#175](https://github.com/ha-vimar/ha-vimar-intercom/pull/175)).
+
+### Bug fixes
+
+- Cloud phonebook downloads distinguish an unanswered status request from a status reply without a token, with guidance to check the PICG address ([#171](https://github.com/ha-vimar/ha-vimar-intercom/pull/171)).
+- Phonebook import confirmation displays the correct source and no longer suggests that changing the SGA overwrites an independently configured PICG ([#174](https://github.com/ha-vimar/ha-vimar-intercom/pull/174)).
+
+## [1.0.22] - 2026-10-12
+
+> **⚠ Before you update**
+>
+> - If your video was fine at 2 Mbit/s over the cloud (e.g. a Tab 5S Up 40515), set "Video quality from the panel" to 2 Mbit/s in the settings ([#161](https://github.com/ha-vimar/ha-vimar-intercom/pull/161)).
+
+### Bug fixes
+
+- Over the cloud the panel's video is back to 256 kbit/s by default: 2 Mbit/s smeared, froze and lagged on a Tab 7S Up 40517. A new setting, "Video quality from the panel", picks Automatic (2 Mbit/s on local UDP, 256 kbit/s over the cloud), 256 kbit/s or 2 Mbit/s ([#161](https://github.com/ha-vimar/ha-vimar-intercom/pull/161)).
+- A ring answered on the indoor monitor or in the Vimar app now shows as "Risposto altrove" in the card's ring history instead of "Nessuna risposta" (on plants that report it, like the 40517) ([#165](https://github.com/ha-vimar/ha-vimar-intercom/pull/165)).
+- "Risposto altrove" in the ring history no longer depends on the order of the values in the panel's Reason header, and a ring answered from HA (or by the away message) is never relabelled as answered elsewhere afterwards ([#166](https://github.com/ha-vimar/ha-vimar-intercom/pull/166)).
+- A ring where you opened the door from Home Assistant now shows as *Aperto* in the card history, instead of *Rifiutato* when you close the popup afterwards ([#170](https://github.com/ha-vimar/ha-vimar-intercom/pull/170)).
+
+### Documentation
+
+- The README says that Wi-Fi kits using the View Door app (e.g. K40955) are not supported ([#169](https://github.com/ha-vimar/ha-vimar-intercom/pull/169)).
+
 ## [1.0.21] - 2026-10-07
 
 ### Documentation
