@@ -1,5 +1,12 @@
 # Fully local support investigation: Tab 7S Up (40517)
 
+For the separate production-host comparison branch prepared on 2026-10-15,
+see [Local TCP host test](LOCAL_TCP_HOST_TEST.md). That guide includes backup,
+manual installation, transport selection and rollback. Later owner-operated
+VIEW captures and the limits of the WAN-blocked observations are summarized in
+[upstream issue #179](https://github.com/ha-vimar/ha-vimar-intercom/issues/179).
+Successful offline operation remains unestablished.
+
 Status as of 2026-10-12: **no successful offline operation established**.
 This is an investigation record, not a claim of local compatibility.
 The available 2023 update package has been inspected and its outer archive
