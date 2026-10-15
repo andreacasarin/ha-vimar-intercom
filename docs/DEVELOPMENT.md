@@ -20,13 +20,13 @@ current checkout. Run `./docker/dev.sh` again after Python edits or switching
 branches: containers are recreated to load the new code, preserving development
 settings and login. Python edits are not hot-reloaded.
 
-The root `compose.yaml` also works directly:
+From the repository root, use the file directly with Docker Compose:
 
 ```bash
-docker compose up -d --force-recreate
-docker compose logs bootstrap           # readiness, URL and login
-docker compose logs -f homeassistant    # application logs
-docker compose down                    # stop; retain development settings
+docker compose -f docker/docker-compose.yaml up -d --force-recreate
+docker compose -f docker/docker-compose.yaml logs bootstrap           # readiness, URL and login
+docker compose -f docker/docker-compose.yaml logs -f homeassistant    # application logs
+docker compose -f docker/docker-compose.yaml down                    # stop; retain development settings
 ```
 
 The script combines startup, waiting for bootstrap, and showing credentials. It
@@ -44,7 +44,7 @@ its own state directory.
 
 | Path | Purpose |
 |---|---|
-| `compose.yaml` | Pinned HA/Nginx images, startup ordering, health checks and networks |
+| `docker/docker-compose.yaml` | Pinned HA/Nginx images, startup ordering, health checks and networks |
 | `docker/dev.sh` | One-command start/update and readiness output |
 | `docker/seed.py` | Creates missing development configuration files |
 | `docker/bootstrap.py` | Creates the owner through HA's onboarding API and checks login, setup and dashboard |

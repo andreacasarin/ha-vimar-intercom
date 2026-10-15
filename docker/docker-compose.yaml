@@ -13,8 +13,8 @@ services:
     entrypoint: [python, /dev-tools/seed.py]
     network_mode: none
     volumes:
-      - ./.dev-ha:/state
-      - ./docker:/dev-tools:ro
+      - ../.dev-ha:/state
+      - .:/dev-tools:ro
     restart: "no"
 
   homeassistant:
@@ -23,8 +23,8 @@ services:
       seed:
         condition: service_completed_successfully
     volumes:
-      - ./.dev-ha/config:/config
-      - ./custom_components/vimar_intercom:/config/custom_components/vimar_intercom:ro
+      - ../.dev-ha/config:/config
+      - ../custom_components/vimar_intercom:/config/custom_components/vimar_intercom:ro
     networks: [sandbox]
     restart: "no"
     healthcheck:
@@ -42,7 +42,7 @@ services:
     ports:
       - "127.0.0.1:${HA_DEV_PORT:-18123}:80"
     volumes:
-      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     networks: [sandbox, web]
     restart: "no"
     healthcheck:
@@ -60,8 +60,8 @@ services:
       web:
         condition: service_healthy
     volumes:
-      - ./.dev-ha:/state
-      - ./docker:/dev-tools:ro
+      - ../.dev-ha:/state
+      - .:/dev-tools:ro
     networks: [sandbox]
     restart: "no"
 

@@ -20,13 +20,13 @@ Dopo modifiche Python o un cambio di branch, esegui nuovamente `./docker/dev.sh`
 i container vengono ricreati e caricano il codice aggiornato, conservando dati e
 accesso. Il codice Python non viene ricaricato automaticamente.
 
-Il file `compose.yaml` nella radice funziona anche direttamente:
+Dalla radice del repository puoi usare direttamente il file Docker Compose:
 
 ```bash
-docker compose up -d --force-recreate
-docker compose logs bootstrap           # stato, URL e credenziali
-docker compose logs -f homeassistant    # log applicativi
-docker compose down                    # arresta, conservando i dati
+docker compose -f docker/docker-compose.yaml up -d --force-recreate
+docker compose -f docker/docker-compose.yaml logs bootstrap           # stato, URL e credenziali
+docker compose -f docker/docker-compose.yaml logs -f homeassistant    # log applicativi
+docker compose -f docker/docker-compose.yaml down                    # arresta, conservando i dati
 ```
 
 Lo script riunisce avvio, attesa del bootstrap e stampa delle credenziali;
@@ -42,7 +42,7 @@ Ogni checkout conserva i propri dati.
 
 ## File e dati persistenti
 
-`compose.yaml` definisce immagini, servizi, controlli di avvio e reti. `docker/`
+`docker/docker-compose.yaml` definisce immagini, servizi, controlli di avvio e reti. `docker/`
 contiene launcher, configurazione HA minima, dashboard, proxy Nginx e script di
 inizializzazione. `seed.py` crea solo i file mancanti; `bootstrap.py` crea
 l'utente tramite l'API di onboarding HA, verifica accesso, modulo e dashboard,
