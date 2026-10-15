@@ -57,10 +57,31 @@ stored in `.dev-ha/credentials.json` and printed in bootstrap logs; do not share
 that directory or those logs. No production configuration is copied. Bootstrap
 revokes its temporary authentication session after verification.
 
-To start from scratch, stop the stack and rename `.dev-ha/` before rerunning the
-launcher. Keep the renamed directory to restore its settings later. Templates
-are copied only when missing: edits to templates do not overwrite an existing
-development configuration.
+On Linux Docker Engine, the HA image runs as root, so files inside `.dev-ha/`
+can be root-owned and unreadable by the host user. The launcher still prints the
+login. To delete this development configuration and start from scratch, use:
+
+```bash
+./docker/dev.sh reset
+```
+
+Reset stops/removes this Compose project's containers and networks, then clears
+only `.dev-ha/` through a one-shot, network-disabled container and removes the
+empty directory. **It deletes the development login, configuration and history.**
+Back up any development state you want to keep first. Use the same
+`COMPOSE_PROJECT_NAME` and `HA_DEV_PORT` settings as at startup. No host `sudo`,
+production configuration or other Compose project is involved. Symlinked
+`.dev-ha` directories are refused.
+
+Run `./docker/dev.sh` again to create a fresh instance. To retain state instead,
+use `docker compose -f docker/docker-compose.yaml down` or stop the containers.
+Templates are copied only when missing: edits to templates do not overwrite an
+existing development configuration.
+
+The pytest suite includes a Linux Docker Engine lifecycle check on disposable
+GitHub Actions runners: fresh onboarding, restart persistence, deletion of
+root-owned state and fresh onboarding after reset. Local unit-test runs skip
+that check and never start Docker automatically.
 
 ## Network isolation and scope
 

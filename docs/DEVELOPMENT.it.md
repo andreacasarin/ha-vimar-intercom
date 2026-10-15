@@ -51,9 +51,31 @@ quindi revoca la propria sessione temporanea.
 `.dev-ha/` è esclusa da Git e separata dalla produzione. Contiene configurazione
 e credenziali (`credentials.json`). L'accesso fisso è destinato solo all'istanza
 locale; le credenziali compaiono anche nei log del bootstrap. Non condividere
-directory o log. Per ripartire da zero, arresta lo stack e rinomina `.dev-ha/`
-prima di riavviarlo, conservandola se serve ripristinare i dati. Le modifiche ai
-template non sovrascrivono configurazioni già esistenti.
+directory o log. Le modifiche ai template non sovrascrivono configurazioni già
+esistenti.
+
+Su Linux Docker Engine, HA gira come root: i file dentro `.dev-ha/` possono
+appartenere a root e non essere leggibili dall'utente host. Il launcher stampa
+comunque le credenziali. Per cancellare i dati di sviluppo e ripartire da zero:
+
+```bash
+./docker/dev.sh reset
+```
+
+Il reset arresta/rimuove container e reti di questo progetto Compose, poi svuota
+solo `.dev-ha/` con un container temporaneo senza rete e rimuove la directory
+vuota. **Cancella accesso, configurazione e cronologia dell'istanza di sviluppo.**
+Salva prima i dati che vuoi conservare. Usa gli stessi `COMPOSE_PROJECT_NAME` e
+`HA_DEV_PORT` dell'avvio. Non servono `sudo` sull'host e non vengono coinvolti
+produzione o altri progetti Compose. Una `.dev-ha` che sia un link simbolico viene
+rifiutata.
+
+Poi `./docker/dev.sh` crea una nuova istanza. Per conservare i dati, usa invece
+`docker compose -f docker/docker-compose.yaml down` oppure arresta i container.
+La suite pytest include, sui runner Linux temporanei di GitHub Actions, una
+verifica con Docker Engine: onboarding, persistenza al riavvio, reset dei dati
+di root e nuovo onboarding dopo il reset. Nei test locali questa verifica viene
+saltata e Docker non viene avviato automaticamente.
 
 ## Isolamento e limiti
 
