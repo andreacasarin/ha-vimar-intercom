@@ -195,7 +195,7 @@ def test_setup_stores_explicit_local_tcp_without_changing_profile_defaults(cf, m
     assert calls == ["local"]
 
 
-def test_saving_after_registration_only_preserves_credentials_and_identity(cf, monkeypatch):
+def test_saving_tcp_setup_preserves_probed_credentials_and_identity(cf, monkeypatch):
     calls = []
 
     async def local(**kwargs):
@@ -214,13 +214,9 @@ def test_saving_after_registration_only_preserves_credentials_and_identity(cf, m
     flow.async_show_form = lambda **kw: {"type": "form", **kw}
     flow.async_create_entry = lambda **kw: {"type": "create_entry", **kw}
     values = {"local_proxy": "127.0.0.1", "use_local_udp": True, "local_transport": "tcp",
-              "device_name": "Synthetic DEV", "registration_only": True}
-    assert asyncio.run(flow.async_step_network(values))["type"] == "form"
-    values["registration_only"] = False
+              "device_name": "Synthetic DEV"}
     result = asyncio.run(flow.async_step_network(values))
     assert result["type"] == "create_entry"
-    probe = dict(calls[0])
-    assert probe.pop("unregister") is True
-    assert probe == calls[1]
+    assert len(calls) == 1
     for key in ("device_imei", "device_uuid", "device_name", "sip_user", "sip_password"):
-        assert result["data"][key] == calls[1][key]
+        assert result["data"][key] == calls[0][key]
